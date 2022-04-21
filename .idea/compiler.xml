@@ -10,7 +10,7 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="jdbcAndHibernate" target="1.7" />
+      <module name="jdbcAndHibernate" target="15" />
     </bytecodeTargetLevel>
   </component>
 </project>

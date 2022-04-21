@@ -12,6 +12,8 @@ public class Main {
         userService.saveUser("Ip","Man", (byte) 40);
         userService.saveUser("Aqua","Man", (byte) 25);
         System.out.println(userService.getAllUsers());
+        System.out.println(userService.existsByFirstName("Terminator"));
+        System.out.println(userService.existsByFirstName("Spider"));
         userService.cleanUsersTable();
         userService.dropUsersTable();
 

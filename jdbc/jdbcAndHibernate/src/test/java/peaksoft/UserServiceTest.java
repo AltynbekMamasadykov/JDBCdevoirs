@@ -1,103 +1,176 @@
 package peaksoft;
 
-import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import peaksoft.model.User;
 import peaksoft.service.UserService;
 import peaksoft.service.UserServiceImpl;
+import peaksoft.util.Util;
 
+import java.sql.*;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class UserServiceTest {
 
-    private final UserService userService = new UserServiceImpl();
+    private final UserService underTest = new UserServiceImpl();
+    private final Connection connection;
 
-    private final String testName = "Kanat";
-    private final String testLastName = "Subanov";
-    private final byte testAge = 23;
+    private final String testName = "Will";
+    private final String testLastName = "Smith";
+    private final byte testAge = 40;
+
+    private static final String CREATE_TABLE_IF_NOT_EXISTS_QUERY = """
+            create table if not exists users (
+            id serial primary key,
+            name varchar not null,
+            lastName varchar not null,
+            age smallint not null
+            );
+            """;
+    public static final String DROP_TABLE_QUERY = "drop table users;";
+    public static final String DROP_TABLE_IF_EXIST_QUERY = "drop table if exists users;";
+    public String INSERT_INTO_QUERY = "insert into users (name, lastName, age) values (?, ?, ?);";
+    public static final String GET_QUANTITY_OF_USERS = "select count(*) as quantity from users;";
+
+    public UserServiceTest() throws SQLException {
+        connection = new Util().connection();
+    }
+
+    @Before
+    public void setUp() {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(DROP_TABLE_IF_EXIST_QUERY);
+            statement.execute(CREATE_TABLE_IF_NOT_EXISTS_QUERY);
+            saveNewUser(testName, testLastName, testAge);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @After
+    public void tearDown() {
+        try (Statement statement = connection.createStatement();) {
+            statement.execute(DROP_TABLE_IF_EXIST_QUERY);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Test
     public void dropUsersTable() {
-        try {
-            userService.dropUsersTable();
-            userService.dropUsersTable();
-        } catch (Exception e) {
-            Assert.fail("При тестировании удаления таблицы произошло исключение\n" + e);
-        }
+
+        underTest.dropUsersTable();
+
+        assertThrows(RuntimeException.class, () -> execute(DROP_TABLE_QUERY));
     }
 
     @Test
     public void createUsersTable() {
-        try {
-            userService.dropUsersTable();
-            userService.createUsersTable();
-        } catch (Exception e) {
-            Assert.fail("При тестировании создания таблицы пользователей произошло исключение\n" + e.getMessage());
-        }
+        // given
+        execute(DROP_TABLE_IF_EXIST_QUERY);
+
+        // when
+        underTest.createUsersTable();
+
+        // then
+        assertDoesNotThrow(() -> execute(DROP_TABLE_QUERY));
     }
 
     @Test
     public void saveUser() {
-        try {
-            userService.dropUsersTable();
-            userService.createUsersTable();
-            userService.saveUser(testName, testLastName, testAge);
+        // given
+        underTest.saveUser(testName, testLastName, testAge);
 
-            User user = userService.getAllUsers().get(0);
+        // when
+        int result = getQuantityOfUsers();
 
-            if (!testName.equals(user.getName())
-                    || !testLastName.equals(user.getLastName())
-                    || testAge != user.getAge()
-            ) {
-                Assert.fail("User был некорректно добавлен в базу данных");
-            }
-
-        } catch (Exception e) {
-            Assert.fail("Во время тестирования сохранения пользователя произошло исключение\n" + e);
-        }
+        // then
+        assertEquals(2, result);
     }
 
     @Test
     public void removeUserById() {
-        try {
-            userService.dropUsersTable();
-            userService.createUsersTable();
-            userService.saveUser(testName, testLastName, testAge);
-            userService.removeUserById(1L);
-        } catch (Exception e) {
-            Assert.fail("При тестировании удаления пользователя по id произошло исключение\n" + e);
-        }
+        // given
+        saveNewUser("Zamir", "Sabyrzhanov", (byte) 28);
+
+        // when
+        underTest.removeUserById(2);
+
+        // then
+        assertEquals(1, getQuantityOfUsers());
     }
 
     @Test
     public void getAllUsers() {
-        try {
-            userService.dropUsersTable();
-            userService.createUsersTable();
-            userService.saveUser(testName, testLastName, testAge);
-            List<User> userList = userService.getAllUsers();
+        // given
+        saveNewUser(testName, testLastName, testAge);
 
-            if (userList.size() != 1) {
-                Assert.fail("Проверьте корректность работы метода сохранения пользователя/удаления или создания таблицы");
-            }
-        } catch (Exception e) {
-            Assert.fail("При попытке достать всех пользователей из базы данных произошло исключение\n" + e);
-        }
+        // when
+        List<User> result = underTest.getAllUsers();
+        int quantityOfUsers = getQuantityOfUsers();
+
+        // then
+        assertEquals(quantityOfUsers, result.size());
     }
 
     @Test
     public void cleanUsersTable() {
-        try {
-            userService.dropUsersTable();
-            userService.createUsersTable();
-            userService.saveUser(testName, testLastName, testAge);
-            userService.cleanUsersTable();
 
-            if (userService.getAllUsers().size() != 0) {
-                Assert.fail("Метод очищения таблицы пользователей реализован не корректно");
+        // given
+        underTest.cleanUsersTable();
+        // when
+        int result = getQuantityOfUsers();
+
+        // then
+        assertEquals(0, result);
+    }
+    @Test
+    public void existsByFirstName() {
+        // given
+        saveNewUser("Muhammed", "Allanov", (byte) 23);
+
+        // when
+        boolean result = underTest.existsByFirstName("Muhammed");
+
+        // then
+        assertTrue(result);
+    }
+    private int getQuantityOfUsers() {
+        int quantityOfUsers = -1;
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(GET_QUANTITY_OF_USERS);) {
+
+            if (!resultSet.next()) {
+                Assertions.fail("no result from query - " + GET_QUANTITY_OF_USERS);
             }
-        } catch (Exception e) {
-            Assert.fail("При тестировании очистки таблицы пользователей произошло исключение\n" + e);
+
+            quantityOfUsers = resultSet.getInt("quantity");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return quantityOfUsers;
+    }
+
+    private void saveNewUser(String name, String lastName, byte age) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement(INSERT_INTO_QUERY)) {
+            preparedStatement.setString(1, name);
+            preparedStatement.setString(2, lastName);
+            preparedStatement.setByte(3, age);
+            preparedStatement.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void execute(String query) {
+        try (Statement statement = connection.createStatement();) {
+            statement.execute(query);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 }

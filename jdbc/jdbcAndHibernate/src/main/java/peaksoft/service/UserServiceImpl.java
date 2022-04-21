@@ -32,4 +32,9 @@ public class UserServiceImpl implements UserService {
     public void cleanUsersTable() {
         userDaoJdbc.cleanUsersTable();
     }
+
+    public boolean existsByFirstName(String firstName) {
+       return userDaoJdbc.existsByFirstName(firstName);
+    }
+
 }

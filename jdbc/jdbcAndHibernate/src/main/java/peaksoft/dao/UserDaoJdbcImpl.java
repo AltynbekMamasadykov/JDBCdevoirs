@@ -1,4 +1,5 @@
 package peaksoft.dao;
+import peaksoft.exceptions.SomethingWentWrongException;
 import peaksoft.model.User;
 import peaksoft.util.Util;
 
@@ -110,5 +111,28 @@ public class UserDaoJdbcImpl implements UserDao {
         catch (SQLException e) {
             System.err.println(e.getMessage());
         }
+
+    }
+
+    public boolean existsByFirstName(String firstName) {
+        String sqlQuery = """
+        select case when count(name) > 0 then true else false end
+        from users
+        where name = ?; 
+        """;
+        try (PreparedStatement preparedStatement = Util.connection().prepareStatement(sqlQuery)) {
+            preparedStatement.setString(1, firstName);
+            ResultSet resultSet = preparedStatement.executeQuery();
+            if (resultSet.next()) {
+                return resultSet.getBoolean(1);
+            }
+            resultSet.close();
+            throw new SomethingWentWrongException(
+                    "Something went wrong database does not return any value"
+            );
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 }
